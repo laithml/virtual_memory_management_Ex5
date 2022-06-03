@@ -107,9 +107,7 @@ char sim_mem::load(int process_id, int address) {
     process_id--;
     int offset = address % page_size;
     int page = address / page_size;
-
     int frame;
-
     if (page_table[process_id][page].V == 1) {
         frame = page_table[process_id][page].frame;
         return main_memory[offset + (frame * page_size)];
@@ -119,7 +117,7 @@ char sim_mem::load(int process_id, int address) {
                 char temp[page_size];
                 lseek(program_fd[process_id], page_size * page, SEEK_SET);
                 if (read(program_fd[process_id], temp, page_size) != -1) {
-                    perror("Read From logical memory File Is Failed");
+                    perror("Read From logical memory File Is Failed\n");
                     return '\0';
                 }
 
@@ -130,11 +128,11 @@ char sim_mem::load(int process_id, int address) {
 
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].swap_index = -1;
-                page_table[process_id][page].frame = empty / page_size;
+                page_table[process_id][page].frame = (empty - page_size)/page_size;
                 frame = page_table[process_id][page].frame;
                 return main_memory[(page_size * frame) + offset];
-            } else {//where are in section can't read from it
-                fprintf(stderr, "this page doesn't in text/data section can't load from it");
+            } else {//we are in section can't read from it
+                fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
                 return '\0';
             }
         } else {//V=0,P=1
@@ -145,10 +143,11 @@ char sim_mem::load(int process_id, int address) {
                         break;
                     index++;
                 }
+                swap_memory[index]=-1;
                 char temp[page_size];
                 lseek(swapfile_fd, page_size * index, SEEK_SET);
                 if (read(swapfile_fd, temp, page_size) != -1) {
-                    perror("Read From logical memory File Is Failed");
+                    perror("Read From logical memory File Is Failed\n");
                     return '\0';
                 }
                 int empty = emptyLoc();
@@ -158,11 +157,11 @@ char sim_mem::load(int process_id, int address) {
 
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].swap_index = -1;
-                page_table[process_id][page].frame = empty / page_size;
+                page_table[process_id][page].frame = (empty - page_size)/page_size;
                 frame = page_table[process_id][page].frame;
                 return main_memory[(page_size * frame) + offset];
             } else {
-                fprintf(stderr, "_______________IDK________________");
+                fprintf(stderr, "_______________IDK________________\n");
                 return '\0';
             }
         }
@@ -175,12 +174,65 @@ void sim_mem::store(int process_id, int address, char value) {
     process_id--;
     int offset = address % page_size;
     int page = address / page_size;
-    int PA = -1;
-    int frame;
-    if (page_table[process_id][page].V == 1) {
-        frame = page_table[process_id][page].frame;
-        PA = offset + (frame * page_size);
-        main_memory[PA] = value;
+    if (page_table[process_id][page].V == 1) {//page is in memory
+        main_memory[(page_table[process_id][page].frame * page_size) +offset] = value;
+    }else{
+        if(page_table[process_id][page].P==0 ) {//v=0,p=0
+            fprintf(stderr, "there's no permission to write\n");
+            return;
+        }
+        else if(page<= textSection+(data_size/page_size) ){//v=0,p=1,but cant store here
+            fprintf(stderr, "can't store into text/data area\n");
+            return;
+        }else {
+            if (page_table[process_id][page].D == 0) {//v=0,p=1,d=0,not text area
+                /*
+                 * create a new page at the empty file in the memory
+                 * and fill it with '0'
+                 * then store the value in the right index
+                 */
+                int empty = emptyLoc();
+                while (empty < page_size) {
+                    if (empty == offset)
+                        main_memory[empty] = value;
+                    else
+                        main_memory[empty] = '0';
+                    empty++;
+                }
+                page_table[process_id][page].V = 1;
+                page_table[process_id][page].D = 1;
+                page_table[process_id][page].frame = (empty - page_size)/page_size;
+                page_table[process_id][page].swap_index = -1;
+                return;
+            }else{
+                char temp[page_size];
+                int i=0,empty=emptyLoc();
+                while(i<swap_size/page_size){
+                    if(swap_memory[i]==page)
+                        break;
+                    i++;
+                }
+                lseek(swapfile_fd, page_size * i, SEEK_SET);
+                if (read(swapfile_fd, temp, page_size) != -1) {
+                    perror("Read From Swap File Is Failed\n");
+                    return ;
+                }
+                i=0;
+                while(empty<page_size){
+                    if(i==offset)
+                        main_memory[empty]=value;
+                    else
+                        main_memory[empty]=temp[i];
+                    empty++,i++;
+                }
+                page_table[process_id][page].frame=(empty - page_size)/page_size;
+                page_table[process_id][page].V=1;
+                page_table[process_id][page].swap_index=-1;
+                return;
+            }
+        }
+
+
     }
 }
 
