@@ -112,28 +112,25 @@ char sim_mem::load(int process_id, int address) {
         frame = page_table[process_id][page].frame;
         return main_memory[offset + (frame * page_size)];
     } else {
-        if (page_table[process_id][page].P == 0 && page_table[process_id][page].D == 0) {
+        if (page_table[process_id][page].P == 0) {
             if (page <= textSection) {
                 char temp[page_size];
                 lseek(program_fd[process_id], page_size * page, SEEK_SET);
-                if (read(program_fd[process_id], temp, page_size) != -1) {
+                if (read(program_fd[process_id], temp, page_size) != page_size) {
                     perror("Read From logical memory File Is Failed\n");
                     return '\0';
                 }
 
                 int empty = emptyLoc();
                 int j = 0;
-                for (int i = empty; i < page_size; i++, j++)
+                for (int i = empty; j < page_size; i++, j++)
                     main_memory[i] = temp[j];
 
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].swap_index = -1;
-                page_table[process_id][page].frame = (empty - page_size)/page_size;
+                page_table[process_id][page].frame = empty/page_size;
                 frame = page_table[process_id][page].frame;
                 return main_memory[(page_size * frame) + offset];
-            } else {//we are in section can't read from it
-                fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
-                return '\0';
             }
         } else {//V=0,P=1
             if (page_table[process_id][page].D == 1) {
@@ -146,7 +143,7 @@ char sim_mem::load(int process_id, int address) {
                 swap_memory[index]=-1;
                 char temp[page_size];
                 lseek(swapfile_fd, page_size * index, SEEK_SET);
-                if (read(swapfile_fd, temp, page_size) != -1) {
+                if (read(swapfile_fd, temp, page_size) != page_size) {
                     perror("Read From logical memory File Is Failed\n");
                     return '\0';
                 }
@@ -157,12 +154,13 @@ char sim_mem::load(int process_id, int address) {
 
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].swap_index = -1;
-                page_table[process_id][page].frame = (empty - page_size)/page_size;
+                page_table[process_id][page].frame = empty/page_size;
                 frame = page_table[process_id][page].frame;
                 return main_memory[(page_size * frame) + offset];
             } else {
-                fprintf(stderr, "_______________IDK________________\n");
-                return '\0';
+                    fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
+                    return '\0';
+
             }
         }
     }
@@ -191,12 +189,13 @@ void sim_mem::store(int process_id, int address, char value) {
                  * and fill it with '0'
                  * then store the value in the right index
                  */
-                int empty = emptyLoc();
-                while (empty < page_size) {
-                    if (empty == offset)
+                int empty = emptyLoc(),i=0;
+                while (i < page_size) {
+                    if (i == offset)
                         main_memory[empty] = value;
                     else
                         main_memory[empty] = '0';
+                    i++;
                     empty++;
                 }
                 page_table[process_id][page].V = 1;
@@ -213,12 +212,12 @@ void sim_mem::store(int process_id, int address, char value) {
                     i++;
                 }
                 lseek(swapfile_fd, page_size * i, SEEK_SET);
-                if (read(swapfile_fd, temp, page_size) != -1) {
+                if (read(swapfile_fd, temp, page_size) != page_size) {
                     perror("Read From Swap File Is Failed\n");
                     return ;
                 }
                 i=0;
-                while(empty<page_size){
+                while(i<page_size){
                     if(i==offset)
                         main_memory[empty]=value;
                     else
@@ -284,8 +283,8 @@ int sim_mem::emptyLoc() {
     while (i < MEMORY_SIZE) {
         notEmp = 0;
         if (main_memory[i] == '0') {
-            for (int j = 0; j < page_size; j++) {
-                if (main_memory[i] != '0') {
+            for (int j = i; j < page_size; j++) {
+                if (main_memory[j] != '0') {
                     notEmp = 1;
                     break;
                 }

@@ -10,12 +10,18 @@
 
         mem_sm.store(1, 98,'X');
         val = mem_sm.load (1, 98);
+        printf("%c\n",val);
+        val = mem_sm.load (1, 20);
+        printf("%c\n",val);
+        mem_sm.store(1, 80,'Z');
+        val = mem_sm.load (1, 80);
+        printf("%c\n",val);
 
 
         mem_sm.print_memory();
         mem_sm.print_swap();
         mem_sm.print_page_table();
-        printf("%c",val);
+
 
     }
 
