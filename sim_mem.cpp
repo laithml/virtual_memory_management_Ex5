@@ -114,8 +114,7 @@ char sim_mem::load(int process_id, int address) {
         frame = page_table[process_id][page].frame;
         return main_memory[offset + (frame * page_size)];
     } else {
-        if (page_table[process_id][page].P == 0) {
-            if (page <= textSection) {
+        if (page_table[process_id][page].P == 0 || page<=textSection+(data_size/page_size)) {
                 char temp[page_size];
                 lseek(program_fd[process_id], page_size * page, SEEK_SET);
                 if (read(program_fd[process_id], temp, page_size) != page_size) {
@@ -135,7 +134,7 @@ char sim_mem::load(int process_id, int address) {
                 q.push(frame);
                 MEMORY_FRAMES_COUNTER++;
                 return main_memory[(page_size * frame) + offset];
-            }
+
         } else {//V=0,P=1
             if (page_table[process_id][page].D == 1) {
                 int index = 0;
@@ -180,12 +179,14 @@ void sim_mem::store(int process_id, int address, char value) {
     int page = address / page_size;
     if (page_table[process_id][page].V == 1) {//page is in memory
         main_memory[(page_table[process_id][page].frame * page_size) + offset] = value;
+        page_table[process_id][page].D=1;
+        MEMORY_FRAMES_COUNTER++;
     } else {
         if (page_table[process_id][page].P == 0) {//v=0,p=0
             fprintf(stderr, "there's no permission to write\n");
             return;
-        } else if (page <= textSection + (data_size / page_size)) {//v=0,p=1,but cant store here
-            fprintf(stderr, "can't store into text/data area\n");
+        } else if (page <= textSection ) {//v=0,p=1,but cant store here
+            fprintf(stderr, "can't store into text area\n");
             return;
         } else {
             if (page_table[process_id][page].D == 0) {//v=0,p=1,d=0,not text area
@@ -289,7 +290,7 @@ void sim_mem::print_page_table() {
 int sim_mem::emptyLoc() {
     int i = 0;
     int notEmp = 0;
-    if (MEMORY_FRAMES_COUNTER == MEMORY_SIZE / page_size) {
+    if (MEMORY_FRAMES_COUNTER >= MEMORY_SIZE / page_size) {
         freeLoc();
     }
 
@@ -323,6 +324,8 @@ void sim_mem::freeLoc() {
             i++;
         }
     }
+    j--;
+    index*=page_size;
     if (page_table[j][i].D == 0) {
         for (int k = 0; k < page_size; k++) {
             main_memory[index] = '0';
@@ -352,7 +355,7 @@ void sim_mem::freeLoc() {
         swap_memory[swap_index]=i;
         page_table[j][i].V=0;
         page_table[j][i].frame=-1;
-        page_table[j][i].swap_index=i*page_size;
+        page_table[j][i].swap_index=swap_index;
 
     }
 }
