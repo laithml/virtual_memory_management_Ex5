@@ -6,8 +6,9 @@
 #define CLASS_EX9_SIM_MEM_H
 
 #include <string>
-
-#define MEMORY_SIZE 200
+#include <queue>
+#define MEMORY_SIZE 20
+using namespace std;
 extern char main_memory[MEMORY_SIZE];
 
 typedef struct page_descriptor
@@ -34,6 +35,7 @@ class sim_mem {
     int textSection;
     int *swap_memory;
     int swap_size;
+    queue<int> q;
 public:
     sim_mem(char exe_file_name1[],char exe_file_name2[] ,char swap_file_name[], int text_size,
                      int data_size, int bss_size, int heap_stack_size,
@@ -46,6 +48,8 @@ public:
     void print_page_table();
 
     int emptyLoc();
+
+    void freeLoc();
 };
 
 

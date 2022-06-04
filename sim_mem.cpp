@@ -8,6 +8,7 @@
 #include "sim_mem.h"
 
 char main_memory[MEMORY_SIZE];
+int MEMORY_FRAMES_COUNTER = 0;
 
 sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_name[], int text_size, int data_size, int bss_size, int heap_stack_size, int num_of_pages, int page_size, int num_of_process) {
     this->text_size = text_size;
@@ -82,11 +83,7 @@ sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_na
 
 /**************************************************************************************/
 sim_mem::~sim_mem() {
-    delete[] page_table[0];
-    if (num_of_proc == 2)
-        delete[] page_table[1];
-    delete[] page_table;
-    delete[] swap_memory;
+
 
     if ((close(swapfile_fd)) == -1 || (close(program_fd[0])) == -1) {
         perror("close Failed");
@@ -98,6 +95,11 @@ sim_mem::~sim_mem() {
             exit(EXIT_FAILURE);
         }
     }
+    delete[] page_table[0];
+    if (num_of_proc == 2)
+        delete[] page_table[1];
+    delete[] page_table;
+    delete[] swap_memory;
 }
 
 
@@ -128,8 +130,10 @@ char sim_mem::load(int process_id, int address) {
 
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].swap_index = -1;
-                page_table[process_id][page].frame = empty/page_size;
+                page_table[process_id][page].frame = empty / page_size;
                 frame = page_table[process_id][page].frame;
+                q.push(frame);
+                MEMORY_FRAMES_COUNTER++;
                 return main_memory[(page_size * frame) + offset];
             }
         } else {//V=0,P=1
@@ -140,7 +144,7 @@ char sim_mem::load(int process_id, int address) {
                         break;
                     index++;
                 }
-                swap_memory[index]=-1;
+                swap_memory[index] = -1;
                 char temp[page_size];
                 lseek(swapfile_fd, page_size * index, SEEK_SET);
                 if (read(swapfile_fd, temp, page_size) != page_size) {
@@ -154,12 +158,14 @@ char sim_mem::load(int process_id, int address) {
 
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].swap_index = -1;
-                page_table[process_id][page].frame = empty/page_size;
+                page_table[process_id][page].frame = empty / page_size;
                 frame = page_table[process_id][page].frame;
+                q.push(frame);
+                MEMORY_FRAMES_COUNTER++;
                 return main_memory[(page_size * frame) + offset];
             } else {
-                    fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
-                    return '\0';
+                fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
+                return '\0';
 
             }
         }
@@ -173,23 +179,22 @@ void sim_mem::store(int process_id, int address, char value) {
     int offset = address % page_size;
     int page = address / page_size;
     if (page_table[process_id][page].V == 1) {//page is in memory
-        main_memory[(page_table[process_id][page].frame * page_size) +offset] = value;
-    }else{
-        if(page_table[process_id][page].P==0 ) {//v=0,p=0
+        main_memory[(page_table[process_id][page].frame * page_size) + offset] = value;
+    } else {
+        if (page_table[process_id][page].P == 0) {//v=0,p=0
             fprintf(stderr, "there's no permission to write\n");
             return;
-        }
-        else if(page<= textSection+(data_size/page_size) ){//v=0,p=1,but cant store here
+        } else if (page <= textSection + (data_size / page_size)) {//v=0,p=1,but cant store here
             fprintf(stderr, "can't store into text/data area\n");
             return;
-        }else {
+        } else {
             if (page_table[process_id][page].D == 0) {//v=0,p=1,d=0,not text area
                 /*
                  * create a new page at the empty file in the memory
                  * and fill it with '0'
                  * then store the value in the right index
                  */
-                int empty = emptyLoc(),i=0;
+                int empty = emptyLoc(), i = 0;
                 while (i < page_size) {
                     if (i == offset)
                         main_memory[empty] = value;
@@ -200,33 +205,37 @@ void sim_mem::store(int process_id, int address, char value) {
                 }
                 page_table[process_id][page].V = 1;
                 page_table[process_id][page].D = 1;
-                page_table[process_id][page].frame = (empty - page_size)/page_size;
+                page_table[process_id][page].frame = (empty - page_size) / page_size;
+                q.push(page_table[process_id][page].frame);
+                MEMORY_FRAMES_COUNTER++;
                 page_table[process_id][page].swap_index = -1;
                 return;
-            }else{
+            } else {
                 char temp[page_size];
-                int i=0,empty=emptyLoc();
-                while(i<swap_size/page_size){
-                    if(swap_memory[i]==page)
+                int i = 0, empty = emptyLoc();
+                while (i < swap_size / page_size) {
+                    if (swap_memory[i] == page)
                         break;
                     i++;
                 }
                 lseek(swapfile_fd, page_size * i, SEEK_SET);
                 if (read(swapfile_fd, temp, page_size) != page_size) {
                     perror("Read From Swap File Is Failed\n");
-                    return ;
+                    return;
                 }
-                i=0;
-                while(i<page_size){
-                    if(i==offset)
-                        main_memory[empty]=value;
+                i = 0;
+                while (i < page_size) {
+                    if (i == offset)
+                        main_memory[empty] = value;
                     else
-                        main_memory[empty]=temp[i];
-                    empty++,i++;
+                        main_memory[empty] = temp[i];
+                    empty++, i++;
                 }
-                page_table[process_id][page].frame=(empty - page_size)/page_size;
-                page_table[process_id][page].V=1;
-                page_table[process_id][page].swap_index=-1;
+                page_table[process_id][page].frame = (empty - page_size) / page_size;
+                page_table[process_id][page].V = 1;
+                q.push(page_table[process_id][page].frame);
+                MEMORY_FRAMES_COUNTER++;
+                page_table[process_id][page].swap_index = -1;
                 return;
             }
         }
@@ -280,6 +289,10 @@ void sim_mem::print_page_table() {
 int sim_mem::emptyLoc() {
     int i = 0;
     int notEmp = 0;
+    if (MEMORY_FRAMES_COUNTER == MEMORY_SIZE / page_size) {
+        freeLoc();
+    }
+
     while (i < MEMORY_SIZE) {
         notEmp = 0;
         if (main_memory[i] == '0') {
@@ -298,7 +311,51 @@ int sim_mem::emptyLoc() {
 
 }
 
+void sim_mem::freeLoc() {
+    int index = q.front();
+    q.pop();
+    int i = 0;
+    int j = 0;
+    for (; j < num_of_proc; j++) {
+        while (i < num_of_pages) {
+            if (page_table[j][i].frame == index)
+                break;
+            i++;
+        }
+    }
+    if (page_table[j][i].D == 0) {
+        for (int k = 0; k < page_size; k++) {
+            main_memory[index] = '0';
+            index++;
+        }
+        page_table[j][i].frame=-1;
+        page_table[j][i].V=0;
+        page_table[j][i].swap_index=-1;
+    } else {
+        int swap_index = 0;
+        for (; swap_index < swap_size / page_size; swap_index++) {
+            if (swap_memory[swap_index] == -1)
+                break;
+        }
+        char temp[page_size];
+        for (int l = 0; l < page_size; l++) {
+            temp[l] = main_memory[index];
+            main_memory[index] = '0';
+            index++;
+        }
+        lseek(swapfile_fd, swap_index * page_size, SEEK_SET);
+        if (write(swapfile_fd, temp, page_size) == -1) {
+            perror("Can't write to swap file");
+            this->sim_mem::~sim_mem();
+            exit(EXIT_FAILURE);
+        }
+        swap_memory[swap_index]=i;
+        page_table[j][i].V=0;
+        page_table[j][i].frame=-1;
+        page_table[j][i].swap_index=i*page_size;
 
+    }
+}
 
 
 
