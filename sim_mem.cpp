@@ -110,6 +110,10 @@ char sim_mem::load(int process_id, int address) {
     int offset = address % page_size;
     int page = address / page_size;
     int frame;
+    if(page>=num_of_pages){
+        fprintf(stderr,"page out of range");
+        exit(EXIT_FAILURE);
+    }
     if (page_table[process_id][page].V == 1) {
         frame = page_table[process_id][page].frame;
         return main_memory[offset + (frame * page_size)];
@@ -177,6 +181,12 @@ void sim_mem::store(int process_id, int address, char value) {
     process_id--;
     int offset = address % page_size;
     int page = address / page_size;
+    if(page>=num_of_pages){
+        fprintf(stderr,"page out of range");
+        exit(EXIT_FAILURE);
+    }
+
+
     if (page_table[process_id][page].V == 1) {//page is in memory
         main_memory[(page_table[process_id][page].frame * page_size) + offset] = value;
         page_table[process_id][page].D=1;
@@ -189,6 +199,28 @@ void sim_mem::store(int process_id, int address, char value) {
             fprintf(stderr, "can't store into text area\n");
             return;
         } else {
+            if(page < textSection+(bss_size/page_size)){//data section
+                char temp[page_size];
+                lseek(program_fd[process_id], page_size * page, SEEK_SET);
+                if (read(program_fd[process_id], temp, page_size) != page_size) {
+                    perror("Read From logical memory File Is Failed\n");
+                    return;
+                }
+
+                int empty = emptyLoc();
+                int j = 0;
+                for (int i = empty; j < page_size; i++, j++)
+                    main_memory[i] = temp[j];
+
+                empty=empty/page_size;
+                main_memory[(page_size * empty) + offset];
+                page_table[process_id][page].V=1;
+                page_table[process_id][page].D=1;
+                page_table[process_id][page].frame=empty;
+                q.push(empty);
+                return;
+
+            }
             if (page_table[process_id][page].D == 0) {//v=0,p=1,d=0,not text area
                 /*
                  * create a new page at the empty file in the memory
@@ -359,8 +391,3 @@ void sim_mem::freeLoc() {
 
     }
 }
-
-
-
-
-
