@@ -104,8 +104,14 @@ sim_mem::~sim_mem() {
 
 
 char sim_mem::load(int process_id, int address) {
-    if (address < 0)
+    if(process_id>num_of_proc){
+        fprintf(stderr,"this process not found\n");
         return '\0';
+    }
+    if (address < 0){
+        fprintf(stderr,"the address is negative\n");
+        return '\0';
+    }
     process_id--;
     int offset = address % page_size;
     int page = address / page_size;
@@ -176,8 +182,14 @@ char sim_mem::load(int process_id, int address) {
 }
 
 void sim_mem::store(int process_id, int address, char value) {
-    if (address < 0)
-        return;
+    if(process_id>num_of_proc){
+        fprintf(stderr,"this process not found\n");
+        return ;
+    }
+    if (address < 0){
+        fprintf(stderr,"the address is negative\n");
+        return ;
+    }
     process_id--;
     int offset = address % page_size;
     int page = address / page_size;
@@ -349,14 +361,18 @@ void sim_mem::freeLoc() {
     q.pop();
     int i = 0;
     int j = 0;
+    int found=0;
     for (; j < num_of_proc; j++) {
-        while (i < num_of_pages) {
-            if (page_table[j][i].frame == index)
+        for(i=0;i<num_of_pages;i++) {
+            if (page_table[j][i].frame == index){
+                found=1;
                 break;
-            i++;
+            }
+        }
+        if(found==1){
+            break;
         }
     }
-    j--;
     index*=page_size;
     if (page_table[j][i].D == 0) {
         for (int k = 0; k < page_size; k++) {
