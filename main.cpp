@@ -7,6 +7,7 @@
 
         sim_mem mem_sm("exec1.txt","exec2.txt","swap_file",25,25,25,25,20,5,2);
         cout<<mem_sm.load(1,3)<<endl;
+        cout<<mem_sm.load(1,55)<<endl;
         cout<<mem_sm.load(1,6)<<endl;
         cout<<mem_sm.load(1,12)<<endl;
         cout<<mem_sm.load(1,15)<<endl;

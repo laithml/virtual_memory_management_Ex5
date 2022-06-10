@@ -11,6 +11,7 @@ char main_memory[MEMORY_SIZE];
 int MEMORY_FRAMES_COUNTER = 0;
 
 sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_name[], int text_size, int data_size, int bss_size, int heap_stack_size, int num_of_pages, int page_size, int num_of_process) {
+   //constructor
     this->text_size = text_size;
     this->data_size = data_size;
     this->bss_size = bss_size;
@@ -28,6 +29,7 @@ sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_na
         exit(EXIT_FAILURE);
     }
     page_table = new page_descriptor *[num_of_process];
+    //open the two executable files if there's two process && malloc a  memory for the 2 page_table
     if (num_of_process == 2) {
         if ((this->program_fd[0] = open(exe_file_name1, O_RDONLY)) == -1 || (this->program_fd[1] = open(exe_file_name2, O_RDONLY)) == -1) {
             perror("can't open the file");
@@ -45,6 +47,7 @@ sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_na
         }
         page_table[0] = new page_descriptor[num_of_pages];
     }
+    //fill the main memory && swapfile zeros
     int i = 0;
     while (i < MEMORY_SIZE) {
         main_memory[i] = '0';
@@ -60,12 +63,14 @@ sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_na
         i++;
     }
     i = 0;
+    //add new swap array to fill the empty index at the swap file
     swap_memory = new int[swapPage];
     while (i < swapPage) {
         swap_memory[i] = -1;
         i++;
     }
 
+    //init page table
     for (int j = 0; j < num_of_process; j++) {
         for (int k = 0; k < num_of_pages; k++) {
             page_table[j][k].V = 0;
@@ -83,7 +88,7 @@ sim_mem::sim_mem(char exe_file_name1[], char exe_file_name2[], char swap_file_na
 
 /**************************************************************************************/
 sim_mem::~sim_mem() {
-
+    //destructor free all allocated memory and close opened files
 
     if ((close(swapfile_fd)) == -1 || (close(program_fd[0])) == -1) {
         perror("close Failed");
@@ -173,8 +178,18 @@ char sim_mem::load(int process_id, int address) {
                 MEMORY_FRAMES_COUNTER++;
                 return main_memory[(page_size * frame) + offset];
             } else {
-                fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
-                return '\0';
+                if(page>textSection && page<=((data_size+bss_size)/page_size) +textSection){
+                    int empty =emptyLoc();
+                    for (int i = empty; i <page_size ; ++i) {
+                        main_memory[i]='0';
+                    }
+                    page_table[process_id][page].V=1;
+                    page_table[process_id][page].frame=empty;
+                    return main_memory[empty+offset];
+                }else {
+                    fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
+                    return '\0';
+                }
 
             }
         }
@@ -331,6 +346,11 @@ void sim_mem::print_page_table() {
     }
 }
 
+
+/*
+ * this function return the empty frame at the memory
+ * and if there's no empty place, it calls a freeLoc function
+ */
 int sim_mem::emptyLoc() {
     int i = 0;
     int notEmp = 0;
@@ -356,6 +376,12 @@ int sim_mem::emptyLoc() {
 
 }
 
+/*
+ * freeLoc check the frame that want to free according to the index from the queue
+ * if it's not dirty and it from text section just override it
+ * else move it to swap file
+ *
+ */
 void sim_mem::freeLoc() {
     int index = q.front();
     q.pop();
