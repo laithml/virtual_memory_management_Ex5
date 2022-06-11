@@ -333,14 +333,14 @@ void sim_mem::print_swap() {
 void sim_mem::print_page_table() {
     int i;
     for (int j = 0; j < num_of_proc; j++) {
-        printf("\n page table of process: %d \n", j + 1);
+        printf("\n page table of process: %d \n", j);
         printf("Valid\t Dirty\t Permission \t Frame\t Swap index\n");
-        for (i = 0; i < num_of_pages; i++) {
-            printf("[%d] \t [%d] \t [%d] \t\t\t [%d] \t [%d]\n",
+        for(i = 0; i < num_of_pages; i++) {
+            printf("[%d]\t[%d]\t[%d]\t[%d]\t[%d]\n",
                    page_table[j][i].V,
                    page_table[j][i].D,
                    page_table[j][i].P,
-                   page_table[j][i].frame,
+                   page_table[j][i].frame ,
                    page_table[j][i].swap_index);
         }
     }
