@@ -7,7 +7,7 @@
 
 #include <string>
 #include <queue>
-#define MEMORY_SIZE 200
+#define MEMORY_SIZE 20
 using namespace std;
 extern char main_memory[MEMORY_SIZE];
 

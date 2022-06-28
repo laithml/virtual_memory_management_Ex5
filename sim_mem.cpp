@@ -129,7 +129,7 @@ char sim_mem::load(int process_id, int address) {
         frame = page_table[process_id][page].frame;
         return main_memory[offset + (frame * page_size)];
     } else {
-        if (page_table[process_id][page].P == 0 || page<=textSection+(data_size/page_size)) {
+        if (page_table[process_id][page].P == 0 || page<textSection+(data_size/page_size)) {
                 char temp[page_size];
                 lseek(program_fd[process_id], page_size * page, SEEK_SET);
                 if (read(program_fd[process_id], temp, page_size) != page_size) {
@@ -184,7 +184,7 @@ char sim_mem::load(int process_id, int address) {
                         main_memory[i]='0';
                     }
                     page_table[process_id][page].V=1;
-                    page_table[process_id][page].frame=empty;
+                    page_table[process_id][page].frame=empty/page_size;
                     return main_memory[empty+offset];
                 }else {
                     fprintf(stderr, "this page doesn't exist, it should be initiate by store function first\n");
@@ -222,10 +222,7 @@ void sim_mem::store(int process_id, int address, char value) {
         if (page_table[process_id][page].P == 0) {//v=0,p=0
             fprintf(stderr, "there's no permission to write\n");
             return;
-        } else if (page <= textSection ) {//v=0,p=1,but cant store here
-            fprintf(stderr, "can't store into text area\n");
-            return;
-        } else {
+        }  else {
             if(page < textSection+(bss_size/page_size)){//data section
                 char temp[page_size];
                 lseek(program_fd[process_id], page_size * page, SEEK_SET);
@@ -240,7 +237,7 @@ void sim_mem::store(int process_id, int address, char value) {
                     main_memory[i] = temp[j];
 
                 empty=empty/page_size;
-                main_memory[(page_size * empty) + offset];
+                main_memory[(page_size * empty) + offset]=value;
                 page_table[process_id][page].V=1;
                 page_table[process_id][page].D=1;
                 page_table[process_id][page].frame=empty;
